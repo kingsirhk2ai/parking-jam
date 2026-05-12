@@ -1,0 +1,21 @@
+node_modules
+dist
+.DS_Store
+.vite
+*.log
+
+# Capacitor / Android
+android/build
+android/app/build
+android/.gradle
+android/local.properties
+android/app/release
+android/captures
+android/keystore.properties
+*.keystore
+*.jks
+
+# Editors
+.idea
+.vscode
+*.iml
