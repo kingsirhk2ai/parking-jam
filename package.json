@@ -1,7 +1,7 @@
 {
   "name": "parking-jam",
-  "version": "0.1.0",
-  "description": "Parking Jam — Phaser 3 + Vite + TypeScript clone of Parking Jam 3D",
+  "version": "0.2.0",
+  "description": "Parking Jam — Three.js 3D + Vite + TypeScript clone of Parking Jam 3D",
   "type": "module",
   "private": true,
   "scripts": {
@@ -13,10 +13,12 @@
   "dependencies": {
     "@capacitor/android": "^8.3.1",
     "@capacitor/core": "^8.3.1",
-    "phaser": "^3.90.0"
+    "@tweenjs/tween.js": "^25.0.0",
+    "three": "^0.171.0"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.3.1",
+    "@types/three": "^0.171.0",
     "typescript": "^6.0.2",
     "vite": "^8.0.8"
   },

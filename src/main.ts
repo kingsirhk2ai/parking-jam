@@ -1,32 +1,85 @@
-import Phaser from 'phaser';
-import { gameConfig } from './config';
+import { createScene, fitCameraToLevel, handleResize } from './scene';
+import { Level } from './level';
+import { LEVELS } from './data/levels';
+import {
+  buildUI, setStarsBar,
+  showWinModal, hideModal, showLevelSelect,
+} from './ui';
+import { load, save, recordStars, starsForMoves } from './progress';
 
-const DPR = Math.max(1, Math.min(window.devicePixelRatio || 1, 3));
+const canvas = document.createElement('canvas');
+document.body.appendChild(canvas);
+const setup = createScene(canvas);
+const ui = buildUI();
+const progress = load();
 
-// Text resolution override: rasterize text textures at dpr× their game-units
-// size so the text textures themselves stay crisp when Phaser.Scale.FIT
-// CSS-scales the canvas up on retina/HiDPI displays.
-Phaser.GameObjects.GameObjectFactory.register(
-  'text',
-  function (
-    this: Phaser.GameObjects.GameObjectFactory,
-    x: number,
-    y: number,
-    text: string | string[],
-    style?: Phaser.Types.GameObjects.Text.TextStyle,
-  ) {
-    const enhanced: Phaser.Types.GameObjects.Text.TextStyle = {
-      ...(style || {}),
-      resolution: (style && (style as { resolution?: number }).resolution) || DPR,
-    };
-    const obj = new Phaser.GameObjects.Text(this.scene, x, y, text, enhanced);
-    this.scene.sys.displayList.add(obj);
-    this.scene.sys.updateList.add(obj);
-    return obj;
-  },
-);
+let currentLevel: Level | null = null;
+let currentIndex = 0;
 
-const game = new Phaser.Game(gameConfig);
+function loadLevelByIndex(idx: number): void {
+  if (currentLevel) currentLevel.dispose();
+  hideModal(ui.modal);
+  currentIndex = ((idx % LEVELS.length) + LEVELS.length) % LEVELS.length;
+  const data = LEVELS[currentIndex];
+  fitCameraToLevel(setup.camera, data.gridWidth, data.gridHeight);
+  ui.levelLabel.textContent = `Level ${data.id}`;
+  ui.movesLabel.textContent = `Moves: 0  •  Par ${data.parMoves}`;
+  setStarsBar(ui.starsBar, progress.stars[data.id] ?? 0);
+  if (data.tutorialText) {
+    ui.tutorialLabel.textContent = data.tutorialText;
+    ui.tutorialLabel.style.display = 'block';
+  } else {
+    ui.tutorialLabel.style.display = 'none';
+  }
+  currentLevel = new Level(data, setup.scene, {
+    onMove: (moves) => {
+      ui.movesLabel.textContent = `Moves: ${moves}  •  Par ${data.parMoves}`;
+      if (moves >= 1) ui.tutorialLabel.style.display = 'none';
+    },
+    onWin: () => {
+      if (!currentLevel) return;
+      const stars = starsForMoves(currentLevel.moves, data.parMoves);
+      recordStars(progress, data.id, stars);
+      progress.currentLevel = Math.min(data.id + 1, LEVELS[LEVELS.length - 1].id);
+      save(progress);
+      setStarsBar(ui.starsBar, progress.stars[data.id] ?? 0);
+      const isLast = currentIndex === LEVELS.length - 1;
+      const cleared = currentLevel.moves;
+      showWinModal(
+        ui.modal, data.id, cleared, data.parMoves, stars, isLast,
+        () => { hideModal(ui.modal); loadLevelByIndex(currentIndex + 1); },
+        () => { hideModal(ui.modal); loadLevelByIndex(currentIndex); },
+      );
+    },
+  });
+}
 
-(window as unknown as { __PHASER_GAME__?: Phaser.Game }).__PHASER_GAME__ = game;
-(window as unknown as { __DPR__?: number }).__DPR__ = DPR;
+ui.resetButton.addEventListener('click', () => loadLevelByIndex(currentIndex));
+ui.selectButton.addEventListener('click', () => {
+  showLevelSelect(
+    ui.modal, LEVELS.length, progress.stars, LEVELS[currentIndex].id,
+    (id) => {
+      const idx = LEVELS.findIndex(l => l.id === id);
+      if (idx >= 0) { hideModal(ui.modal); loadLevelByIndex(idx); }
+    },
+    () => hideModal(ui.modal),
+  );
+});
+
+canvas.addEventListener('pointerdown', (e) => {
+  if (!currentLevel) return;
+  currentLevel.handlePointer(e.clientX, e.clientY, setup.camera);
+});
+
+window.addEventListener('resize', () => handleResize(setup));
+window.addEventListener('orientationchange', () => handleResize(setup));
+
+const startIdx = Math.max(0, LEVELS.findIndex(l => l.id === progress.currentLevel));
+loadLevelByIndex(startIdx >= 0 ? startIdx : 0);
+
+function animate(): void {
+  requestAnimationFrame(animate);
+  if (currentLevel) currentLevel.update();
+  setup.renderer.render(setup.scene, setup.camera);
+}
+requestAnimationFrame(animate);
