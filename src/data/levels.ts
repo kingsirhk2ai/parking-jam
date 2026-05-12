@@ -18,7 +18,7 @@ export const LEVELS: LevelData[] = [
       { id: 'r', x: 0, y: 1, length: 2, facing: 'right',  color: RED  },
       { id: 'b', x: 3, y: 0, length: 2, facing: 'bottom', color: BLUE },
     ],
-    tutorialText: 'Tap a car — it drives forward until it hits something or exits. Move BLUE first, then RED.',
+    tutorialText: 'Tap any car — it drives forward along its facing automatically. Cars only move when the path ahead is clear — a red flash means another car is blocking it. Plan the order to free the red target.',
   },
 
   // ── 2 — 4 cars ─────────────────────────────────────────

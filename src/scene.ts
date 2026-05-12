@@ -24,11 +24,17 @@ export function createScene(canvas: HTMLCanvasElement): SceneSetup {
   camera.position.set(0, 14, 14);
   camera.lookAt(0, 0, 0);
 
-  const ambient = new THREE.AmbientLight(0xffffff, 0.55);
+  const ambient = new THREE.AmbientLight(0xffffff, 0.45);
   scene.add(ambient);
 
-  const hemi = new THREE.HemisphereLight(0x8aaaff, 0x2c2a2a, 0.45);
+  // Cool sky / warm ground hemisphere for car body environmental wash
+  const hemi = new THREE.HemisphereLight(0x9cc3ff, 0x3a3528, 0.6);
   scene.add(hemi);
+
+  // Soft secondary fill from below-front to lift dark sides
+  const fill = new THREE.HemisphereLight(0xffe6c2, 0x222633, 0.35);
+  fill.position.set(0, -1, 0);
+  scene.add(fill);
 
   const dir = new THREE.DirectionalLight(0xffffff, 1.25);
   dir.position.set(7, 14, 5);

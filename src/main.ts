@@ -71,6 +71,16 @@ canvas.addEventListener('pointerdown', (e) => {
   currentLevel.handlePointer(e.clientX, e.clientY, setup.camera);
 });
 
+canvas.addEventListener('pointermove', (e) => {
+  if (!currentLevel) return;
+  if (e.pointerType === 'touch') return;
+  currentLevel.handleHover(e.clientX, e.clientY, setup.camera);
+});
+
+canvas.addEventListener('pointerleave', () => {
+  if (currentLevel) currentLevel.clearHover();
+});
+
 window.addEventListener('resize', () => handleResize(setup));
 window.addEventListener('orientationchange', () => handleResize(setup));
 

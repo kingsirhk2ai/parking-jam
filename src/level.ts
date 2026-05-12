@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Tween, Easing, Group as TweenGroup } from '@tweenjs/tween.js';
 import { LevelData, Facing, yawFor } from './types';
 import { Car } from './car';
+import { wobbleClicked, flashBlockedRed, addBlockerOutline, addDashedConnector } from './effects';
 
 export interface LevelEvents {
   onMove: (moves: number) => void;
@@ -20,6 +21,7 @@ export class Level {
   private picker = new THREE.Raycaster();
   private ndc = new THREE.Vector2();
   private won = false;
+  private hoveredCar: Car | null = null;
 
   constructor(data: LevelData, scene: THREE.Scene, events: LevelEvents) {
     this.data = data;
@@ -37,6 +39,7 @@ export class Level {
     this.scene.remove(this.ground);
     disposeObject(this.ground);
     for (const c of this.cars) disposeObject(c.mesh);
+    this.hoveredCar = null;
   }
 
   update(): void {
@@ -46,34 +49,63 @@ export class Level {
 
   handlePointer(clientX: number, clientY: number, camera: THREE.Camera): void {
     if (this.won) return;
-    this.ndc.x = (clientX / window.innerWidth) * 2 - 1;
-    this.ndc.y = -(clientY / window.innerHeight) * 2 + 1;
-    this.picker.setFromCamera(this.ndc, camera);
-    const meshes = this.cars.filter(c => c.alive && !c.driving).map(c => c.mesh);
-    if (meshes.length === 0) return;
-    const hits = this.picker.intersectObjects(meshes, true);
-    if (hits.length === 0) return;
-    let target: Car | null = null;
-    for (const hit of hits) {
-      let obj: THREE.Object3D | null = hit.object;
-      while (obj) {
-        const c = obj.userData['car'] as Car | undefined;
-        if (c) { target = c; break; }
-        obj = obj.parent;
-      }
-      if (target) break;
-    }
+    const target = this.pickCar(clientX, clientY, camera);
     if (!target || target.driving || !target.alive) return;
     this.driveCar(target);
   }
 
+  handleHover(clientX: number, clientY: number, camera: THREE.Camera): void {
+    if (this.won) {
+      this.clearHover();
+      return;
+    }
+    const target = this.pickCar(clientX, clientY, camera);
+    if (target === this.hoveredCar) return;
+    if (this.hoveredCar) this.hoveredCar.setHover(false);
+    if (target && !target.driving && target.alive) target.setHover(true);
+    this.hoveredCar = target;
+  }
+
+  clearHover(): void {
+    if (this.hoveredCar) {
+      this.hoveredCar.setHover(false);
+      this.hoveredCar = null;
+    }
+  }
+
+  private pickCar(clientX: number, clientY: number, camera: THREE.Camera): Car | null {
+    this.ndc.x = (clientX / window.innerWidth) * 2 - 1;
+    this.ndc.y = -(clientY / window.innerHeight) * 2 + 1;
+    this.picker.setFromCamera(this.ndc, camera);
+    const meshes = this.cars.filter(c => c.alive && !c.driving).map(c => c.mesh);
+    if (meshes.length === 0) return null;
+    const hits = this.picker.intersectObjects(meshes, true);
+    for (const hit of hits) {
+      let obj: THREE.Object3D | null = hit.object;
+      while (obj) {
+        const c = obj.userData['car'] as Car | undefined;
+        if (c) return c;
+        obj = obj.parent;
+      }
+    }
+    return null;
+  }
+
   private driveCar(car: Car): void {
+    if (this.hoveredCar === car) {
+      car.setHover(false);
+      this.hoveredCar = null;
+    }
     const dir = car.facingDir();
     const others = this.cars.filter(c => c !== car && c.alive);
     let blockedDist = Infinity;
+    let blockerCar: Car | null = null;
     for (const other of others) {
       const d = collisionDistance(car, other);
-      if (d < blockedDist) blockedDist = d;
+      if (d < blockedDist) {
+        blockedDist = d;
+        blockerCar = other;
+      }
     }
     const exitDist = distanceToExit(car, this.data.gridWidth, this.data.gridHeight);
 
@@ -84,7 +116,7 @@ export class Level {
     this.events.onMove(this.moves);
 
     if (driveDist <= 0.001) {
-      car.showWarning();
+      this.showBlockedFeedback(car, blockerCar);
       return;
     }
 
@@ -117,10 +149,32 @@ export class Level {
             })
             .start();
         } else {
-          car.showWarning();
+          this.showBlockedFeedback(car, this.findBlocker(car));
         }
       })
       .start();
+  }
+
+  private findBlocker(car: Car): Car | null {
+    let blockedDist = Infinity;
+    let blocker: Car | null = null;
+    for (const other of this.cars) {
+      if (other === car || !other.alive) continue;
+      const d = collisionDistance(car, other);
+      if (d < blockedDist) { blockedDist = d; blocker = other; }
+    }
+    return blocker;
+  }
+
+  private showBlockedFeedback(car: Car, blocker: Car | null): void {
+    car.showBlockedFeedback();
+    wobbleClicked(car, this.tweens);
+    flashBlockedRed(car, this.tweens);
+    if (blocker) {
+      addBlockerOutline(blocker, this.scene, 800);
+      flashBlockedRed(blocker, this.tweens);
+      addDashedConnector(car.center(), blocker.center(), this.scene, 800);
+    }
   }
 }
 
